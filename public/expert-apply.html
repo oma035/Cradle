@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Apply as an expert · Cradle</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="wrap">
+    <nav class="top"><a class="logo" href="/"><span class="dot">✿</span>Cradle</a></nav>
+    <main class="narrow" style="margin: 20px auto 80px">
+      <h1>Apply as an expert</h1>
+      <p class="hint">We check every application by hand. Once approved, you'll get a private link to your reviewer portal.</p>
+
+      <div id="done" class="success" hidden>
+        <h3>Thank you, your application is in. 💜</h3>
+        <p>We're reviewing your certification and will email you your portal link once you're approved.</p>
+      </div>
+
+      <form id="apply" novalidate>
+        <div id="errors" class="errors" hidden></div>
+        <div class="field"><label for="name">Full name</label><input type="text" id="name" required /></div>
+        <div class="field"><label for="email">Email</label><input type="email" id="email" required /></div>
+        <div class="field"><label for="profession">Profession <span class="hint">e.g. Registered midwife, OB-GYN, nurse</span></label><input type="text" id="profession" /></div>
+        <div class="field">
+          <label for="cv">CV or certification <span class="hint">PDF, Word, PNG or JPG, max 5 MB</span></label>
+          <input type="file" id="cv" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" required />
+        </div>
+        <div class="field">
+          <label for="addr">Stellar wallet address for payouts <span class="hint">starts with G, and must accept USDC</span></label>
+          <input type="text" id="addr" placeholder="G..." spellcheck="false" autocomplete="off" required />
+        </div>
+        <div class="field">
+          <label class="check"><input type="checkbox" id="agree" /> <span>I agree to the <a href="/terms" target="_blank">terms and conditions</a>, and confirm my certification is genuine and current.</span></label>
+        </div>
+        <button class="btn btn-primary" id="submit" type="submit">Submit application</button>
+      </form>
+    </main>
+  </div>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const showErrors = (list) => { $("errors").hidden = !list.length; $("errors").innerHTML = list.map((e) => `<div>${e}</div>`).join(""); };
+    const toBase64 = (file) => new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(String(r.result).split(",")[1]);
+      r.onerror = rej;
+      r.readAsDataURL(file);
+    });
+    $("apply").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const file = $("cv").files[0];
+      const errs = [];
+      if (!$("name").value.trim()) errs.push("Your full name is required.");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test($("email").value)) errs.push("A valid email is required.");
+      if (!file) errs.push("Please upload your CV or certificate.");
+      else if (file.size > 5 * 1024 * 1024) errs.push("The CV file must be under 5 MB.");
+      if (!/^G[A-Z2-7]{55}$/.test($("addr").value.trim())) errs.push("Enter a valid Stellar address (56 characters, starting with G).");
+      if (!$("agree").checked) errs.push("Please agree to the terms and conditions.");
+      showErrors(errs);
+      if (errs.length) return;
+
+      $("submit").disabled = true;
+      $("submit").textContent = "Submitting…";
+      try {
+        const res = await fetch("/api/experts/apply", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            name: $("name").value, email: $("email").value, profession: $("profession").value,
+            stellar_address: $("addr").value.trim(), agree: $("agree").checked,
+            cv: { name: file.name, type: file.type || (file.name.endsWith(".docx") ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" : ""), data: await toBase64(file) },
+          }),
+        });
+        const out = await res.json();
+        if (!res.ok) return showErrors(out.errors || ["Something went wrong. Please try again."]);
+        $("apply").hidden = true;
+        $("done").hidden = false;
+      } catch {
+        showErrors(["Network error. Please try again."]);
+      } finally {
+        $("submit").disabled = false;
+        $("submit").textContent = "Submit application";
+      }
+    });
+  </script>
+</body>
+</html>

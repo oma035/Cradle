@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin · Cradle</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <style>
+    body { background: #f6f1f4; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 10px 0 24px; }
+    .stat { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+    .stat b { display: block; font-family: "Fraunces", serif; font-size: 28px; color: var(--plum); }
+    .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); margin-bottom: 16px; flex-wrap: wrap; }
+    .tabs button { background: none; border: 0; padding: 10px 16px; font: 600 15px "DM Sans", sans-serif; color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; }
+    .tabs button.on { color: var(--plum); border-color: var(--plum); }
+    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; font-size: 14px; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { background: var(--plum-soft); color: var(--plum); font-weight: 700; font-size: 13px; }
+    td.t { max-width: 360px; }
+    code { font-size: 12.5px; }
+    .tbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px; flex-wrap: wrap; }
+    .tbar input { max-width: 280px; }
+    .note { background: var(--green-soft); color: var(--green); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <div class="wrap" style="max-width:1280px">
+    <nav class="top">
+      <a class="logo" href="/"><span class="dot">✿</span>Cradle admin</a>
+      <span id="net" class="pill"></span>
+    </nav>
+
+    <div class="stats" id="stats"></div>
+    <div class="card" style="margin-bottom:20px" id="treasury"></div>
+    <div id="note" class="note" hidden></div>
+
+    <div class="tabs" id="tabs">
+      <button data-tab="experts" class="on">Expert applications</button>
+      <button data-tab="users">Users</button>
+      <button data-tab="questions">Questions</button>
+      <button data-tab="payments">Payment history</button>
+    </div>
+    <div class="tbar"><input type="text" id="filter" placeholder="Filter…" /><button class="btn btn-ghost btn-sm" onclick="load()">Refresh</button></div>
+    <div id="panel" style="overflow-x:auto; margin-bottom:60px"></div>
+  </div>
+
+  <script>
+    let data = null, tab = "experts";
+    const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+    const short = (a) => (a ? `${a.slice(0, 5)}…${a.slice(-4)}` : "");
+    const usd = (v) => (v == null || v === "" ? "" : `$${Number(v).toFixed(2)}`);
+    const tx = (h) => (h ? `<a href="${data.explorer}/tx/${h}" target="_blank"><code>${h.slice(0, 8)}…</code></a>` : "");
+    const acct = (a) => (a ? `<a href="${data.explorer}/account/${a}" target="_blank"><code>${short(a)}</code></a>` : "");
+    const pill = (s) => `<span class="pill ${esc(s)}">${esc(String(s).replace(/_/g, " "))}</span>`;
+
+    const views = {
+      experts: () => table(["#", "Applicant", "Profession", "Wallet", "CV", "Applied", "Status", ""], data.experts, (e) => [
+        e.id, `<b>${esc(e.name)}</b><br><span class="hint">${esc(e.email)}</span>`, esc(e.profession), acct(e.stellar_address),
+        `<a href="/api/admin/experts/${e.id}/cv">${esc(e.cv_original_name || "download")}</a>`, esc(e.created_at), pill(e.status),
+        e.status === "pending"
+          ? `<button class="btn btn-primary btn-sm" onclick="decide(${e.id},'approve')">Approve</button> <button class="btn btn-ghost btn-sm" onclick="decide(${e.id},'reject')">Reject</button>`
+          : e.status === "approved" ? `<button class="btn btn-ghost btn-sm" onclick="portal(${e.id})">Portal link</button>` : "",
+      ]),
+      users: () => table(["#", "Name", "Telegram ID", "Wallet", "Questions", "Joined"], data.users, (u) => [
+        u.id, esc(u.telegram_name), `<code>${esc(u.telegram_id)}</code>`, acct(u.public_key) || '<span class="hint">no wallet</span>', u.questions, esc(u.created_at),
+      ]),
+      questions: () => table(["Ticket", "Mother", "Question", "Triage", "Status", "Price", "Expert", "Paid tx", "Payout tx", "Asked"], data.questions, (q) => [
+        `CRD-${q.id}`, esc(q.telegram_name), `<div class="t">${esc(q.text)}</div>${q.error ? `<div class="hint" style="color:var(--red)">${esc(q.error)}</div>` : ""}`,
+        esc(q.triage), pill(q.status) + (q.status === "payout_failed" ? `<br><button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="retry(${q.id})">Retry payout</button>` : ""),
+        usd(q.price_usd), esc(q.expert_name), tx(q.payment_tx), tx(q.payout_tx || q.refund_tx), esc(q.created_at),
+      ]),
+      payments: () => table(["#", "Type", "Ticket", "From", "To", "Amount", "Transaction", "When"], data.payments, (p) => [
+        p.id, pill(p.kind), p.question_id ? `CRD-${p.question_id}` : "", acct(p.from_address), acct(p.to_address), `${usd(p.amount)} ${esc(p.asset)}`, tx(p.tx_hash), esc(p.created_at),
+      ]),
+    };
+
+    function table(heads, rows, cells) {
+      const f = document.getElementById("filter").value.toLowerCase();
+      const list = rows.filter((r) => !f || JSON.stringify(r).toLowerCase().includes(f));
+      if (!list.length) return '<p class="hint">Nothing here yet.</p>';
+      return `<table><thead><tr>${heads.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${list.map((r) => `<tr>${cells(r).map((c) => `<td>${c ?? ""}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+    }
+
+    function render() {
+      const s = data.stats;
+      document.getElementById("net").textContent = data.network === "mainnet" ? "MAINNET · real USDC" : "TESTNET";
+      document.getElementById("net").className = `pill ${data.network === "mainnet" ? "rejected" : "approved"}`;
+      document.getElementById("stats").innerHTML = [
+        ["Users", s.users], ["Pending experts", s.experts_pending], ["Approved experts", s.experts_approved],
+        ["Questions", s.questions], ["Paid reviews answered", s.paid_reviews], ["USDC in", usd(s.volume_in)], ["Paid to experts", usd(s.volume_out)],
+      ].map(([k, v]) => `<div class="stat"><span class="hint">${k}</span><b>${v}</b></div>`).join("");
+      const t = data.treasury;
+      document.getElementById("treasury").innerHTML = `<b>Treasury / escrow wallet</b> <a href="${t.link}" target="_blank"><code>${esc(t.address)}</code></a><br>
+        <span class="hint">USDC ${t.usdc ?? "?"} · XLM ${t.xlm ?? "?"} (XLM pays fees and sponsors new mother wallets, ~1.5 XLM each)${t.hasTrustline === false ? ' · <b style="color:var(--red)">No USDC trustline! Run npm run setup:treasury -- --trust</b>' : ""}</span>`;
+      document.getElementById("panel").innerHTML = views[tab]();
+    }
+
+    async function load() {
+      const res = await fetch("/api/admin/overview");
+      if (!res.ok) { document.getElementById("panel").textContent = "Couldn't load data."; return; }
+      data = await res.json();
+      render();
+    }
+    async function post(url) { const r = await fetch(url, { method: "POST" }); return r.json(); }
+    function note(html) { const n = document.getElementById("note"); n.innerHTML = html; n.hidden = false; }
+    async function decide(id, d) {
+      const out = await post(`/api/admin/experts/${id}/${d}`);
+      if (out.portal) note(`Approved ✅ Send this private portal link to the expert by email:<br><code>${esc(out.portal)}</code>`);
+      load();
+    }
+    async function portal(id) {
+      const r = await (await fetch(`/api/admin/experts/${id}/portal-link`)).json();
+      if (r.portal) note(`Private portal link:<br><code>${esc(r.portal)}</code>`);
+    }
+    async function retry(id) { const r = await post(`/api/admin/questions/${id}/retry-payout`); note(r.ok ? "Payout sent ✅" : `Payout failed: ${esc(r.msg || "")}`); load(); }
+
+    document.getElementById("tabs").addEventListener("click", (e) => {
+      if (!e.target.dataset.tab) return;
+      tab = e.target.dataset.tab;
+      document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b === e.target));
+      render();
+    });
+    document.getElementById("filter").addEventListener("input", () => data && render());
+    load();
+    setInterval(load, 30000);
+  </script>
+</body>
+</html>

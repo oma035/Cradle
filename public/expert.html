@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="referrer" content="no-referrer" />
+  <title>Reviewer portal · Cradle</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <style>
+    .q { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+    .q .text { font-size: 18px; margin: 8px 0 12px; }
+    .q .ai { background: var(--plum-soft); border-radius: 10px; padding: 10px 14px; font-size: 14px; white-space: pre-wrap; }
+    .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .msg { margin-top: 10px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav class="top">
+      <a class="logo" href="/"><span class="dot">✿</span>Cradle</a>
+      <span id="who" class="hint"></span>
+    </nav>
+    <main class="narrow" style="margin: 10px auto 80px">
+      <div id="denied" class="errors" hidden>This portal link isn't valid or your account isn't approved yet.</div>
+      <div id="app" hidden>
+        <h1>Questions waiting for you</h1>
+        <p class="hint">Each answer pays <b id="payout"></b> USDC to <code id="addr"></code> the moment you submit it. The mother's name is never shown to you.</p>
+        <div class="row" style="margin: 10px 0 20px"><span class="hint" id="count"></span><button class="btn btn-ghost btn-sm" onclick="load()">Refresh</button></div>
+        <div id="open"></div>
+        <h2 style="margin-top:40px">Your answered questions</h2>
+        <div id="history" class="hint">None yet.</div>
+      </div>
+    </main>
+  </div>
+  <script>
+    let token = location.hash.slice(1);
+    try { if (token) sessionStorage.setItem("cradleExpert", token); else token = sessionStorage.getItem("cradleExpert") || ""; } catch {}
+    if (location.hash) history.replaceState(null, "", location.pathname);
+
+    const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+    const api = async (path, opts = {}) => {
+      const res = await fetch(path, { ...opts, headers: { "x-expert-token": token, "content-type": "application/json", ...(opts.headers || {}) } });
+      const body = await res.json().catch(() => ({}));
+      return { ok: res.ok, status: res.status, body };
+    };
+
+    async function load() {
+      const me = await api("/api/expert/me");
+      if (!me.ok) { document.getElementById("denied").hidden = false; return; }
+      document.getElementById("app").hidden = false;
+      document.getElementById("who").textContent = `${me.body.name}${me.body.profession ? " · " + me.body.profession : ""}`;
+      document.getElementById("payout").textContent = `$${Number(me.body.payout).toFixed(2)}`;
+      document.getElementById("addr").textContent = me.body.address.slice(0, 6) + "…" + me.body.address.slice(-4);
+
+      const { body } = await api("/api/expert/reviews");
+      document.getElementById("count").textContent = `${body.open.length} open`;
+      document.getElementById("open").innerHTML = body.open.length ? body.open.map(renderQ).join("") : '<p class="hint">No questions waiting right now. 🌿</p>';
+      document.getElementById("history").innerHTML = body.history.length
+        ? body.history.map((h) => `<div class="q"><div class="hint">CRD-${h.id} · ${esc(h.answered_at)}</div><div class="text">${esc(h.text)}</div><div>${esc(h.expert_answer)}</div><div class="msg">Paid $${Number(h.payout_amount).toFixed(2)} · <a href="${h.payout_link}" target="_blank">view payout</a></div></div>`).join("")
+        : "None yet.";
+    }
+
+    function renderQ(q) {
+      const mine = q.status === "claimed";
+      return `<div class="q" id="q${q.id}">
+        <div class="row"><span class="hint">Ticket CRD-${q.id} · paid ${esc(q.paid_at)}</span><span class="pill ${q.status}">${mine ? "claimed by you" : "open"}</span></div>
+        <div class="text">“${esc(q.text)}”</div>
+        <details><summary class="hint">What Cradle's agent told her</summary><div class="ai">${esc(q.ai_answer)}</div></details>
+        ${mine
+          ? `<div class="field" style="margin-top:14px"><textarea id="a${q.id}" placeholder="Write your answer in simple, kind language. Say clearly if she should visit a clinic."></textarea></div>
+             <button class="btn btn-primary" onclick="answer(${q.id}, this)">Send answer &amp; get paid</button>`
+          : `<button class="btn btn-coral" style="margin-top:14px" onclick="claim(${q.id}, this)">Take this question</button>`}
+        <div class="msg" id="m${q.id}"></div>
+      </div>`;
+    }
+
+    async function claim(id, btn) {
+      btn.disabled = true;
+      const r = await api(`/api/expert/reviews/${id}/claim`, { method: "POST" });
+      if (!r.ok) document.getElementById("m" + id).textContent = r.body.error;
+      load();
+    }
+
+    async function answer(id, btn) {
+      const text = document.getElementById("a" + id).value.trim();
+      const m = document.getElementById("m" + id);
+      if (text.length < 20) { m.textContent = "Please write a fuller answer (at least 20 characters)."; m.style.color = "var(--red)"; return; }
+      btn.disabled = true; btn.textContent = "Sending and paying you…";
+      const r = await api(`/api/expert/reviews/${id}/answer`, { method: "POST", body: JSON.stringify({ answer: text }) });
+      if (r.ok && r.body.payout_link) {
+        m.innerHTML = `✅ Sent! You were paid $${Number(r.body.amount).toFixed(2)} USDC. <a href="${r.body.payout_link}" target="_blank">View on Stellar</a>`;
+        m.style.color = "var(--green)";
+        setTimeout(load, 2500);
+      } else {
+        m.textContent = r.body.msg || r.body.error || "Something went wrong.";
+        m.style.color = r.ok ? "var(--amber)" : "var(--red)";
+        btn.disabled = false; btn.textContent = "Send answer & get paid";
+      }
+    }
+
+    load();
+    setInterval(() => { if (!document.querySelector("textarea:focus")) load(); }, 30000);
+  </script>
+</body>
+</html>
