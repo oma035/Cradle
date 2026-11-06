@@ -6,12 +6,12 @@
   <title>Admin · Cradle</title>
   <link rel="stylesheet" href="/static/style.css" />
   <style>
-    body { background: #f6f1f4; }
+    body { background: #f2f8fd; }
     .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 10px 0 24px; }
     .stat { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
-    .stat b { display: block; font-family: "Fraunces", serif; font-size: 28px; color: var(--plum); }
+    .stat b { display: block; font-family: "Figtree", sans-serif; font-size: 28px; color: var(--plum); }
     .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); margin-bottom: 16px; flex-wrap: wrap; }
-    .tabs button { background: none; border: 0; padding: 10px 16px; font: 600 15px "DM Sans", sans-serif; color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; }
+    .tabs button { background: none; border: 0; padding: 10px 16px; font: 600 15px "Figtree", sans-serif; color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; }
     .tabs button.on { color: var(--plum); border-color: var(--plum); }
     table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; font-size: 14px; }
     th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -26,7 +26,7 @@
 <body>
   <div class="wrap" style="max-width:1280px">
     <nav class="top">
-      <a class="logo" href="/"><span class="dot">✿</span>Cradle admin</a>
+      <a class="logo" href="/"><svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#1E6FB8"/><path d="M7 13a9 9 0 0 0 18 0" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/><circle cx="16" cy="11" r="3.2" fill="#fff"/></svg>Cradle admin</a>
       <span id="net" class="pill"></span>
     </nav>
 
