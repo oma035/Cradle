@@ -26,7 +26,7 @@ app.use(webRouter(db, reviews));
 app.listen(config.port, () => {
   console.log(`\nCradle running on ${config.publicUrl} (${config.networkName.toUpperCase()})`);
   if (config.isMainnet) console.log("⚠️  MAINNET: payments use real USDC.");
-  console.log(`   Admin:  ${config.publicUrl}/admin  (user: admin)`);
+  console.log(`   Admin:  ${config.publicUrl}${config.adminPath}/  (keep this link private)`);
   console.log(`   Bot:    https://t.me/${config.telegramUsername}\n`);
 });
 

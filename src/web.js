@@ -4,11 +4,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { config, txLink, accountLink } from "./config.js";
-import { randomToken, safeEqual } from "./secrets.js";
+import { randomToken } from "./secrets.js";
+import { isAdmin, tryLogin, logout } from "./admin-auth.js";
 import { balances, isValidAddress, treasury } from "./stellar.js";
 import { shareOf } from "./money.js";
 
-const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "public");
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+const PUBLIC = path.join(ROOT, "public");
+const PRIVATE = path.join(ROOT, "private"); // admin pages: never served as static files
 const CV_TYPES = {
   "application/pdf": ".pdf",
   "application/msword": ".doc",
@@ -28,7 +31,6 @@ export function webRouter(db, reviews) {
   r.get("/signup/expert", page("expert-apply.html"));
   r.get("/terms", page("terms.html"));
   r.get("/expert", page("expert.html"));
-  r.get("/admin", adminAuth, page("admin.html"));
   r.use("/static", express.static(PUBLIC, { index: false }));
 
   r.get("/api/public/config", (_req, res) =>
@@ -104,8 +106,24 @@ export function webRouter(db, reviews) {
     res.status(out.ok ? 200 : 409).json({ ...out, payout_link: txLink(out.payoutTx) });
   });
 
-  // ---------- Admin ----------
-  r.get("/api/admin/overview", adminAuth, async (_req, res) => {
+  // ---------- Admin (hidden path + email/password login) ----------
+  const admin = express.Router();
+  const adminOnly = (req, res, next) => (isAdmin(req) ? next() : res.status(401).json({ error: "Sign in again." }));
+  const noStore = (_req, res, next) => { res.set("Cache-Control", "no-store"); res.set("X-Robots-Tag", "noindex, nofollow"); next(); };
+  admin.use(noStore);
+
+  admin.get("/", (req, res) => res.sendFile(path.join(PRIVATE, isAdmin(req) ? "admin.html" : "admin-login.html")));
+  admin.post("/login", express.urlencoded({ extended: false, limit: "4kb" }), (req, res) => {
+    const out = tryLogin(req, res, req.body?.email, req.body?.password);
+    if (out.ok) return res.redirect(303, `${config.adminPath}/`);
+    res.redirect(303, `${config.adminPath}/?error=${out.locked ? `locked&m=${out.minutes}` : "1"}`);
+  });
+  admin.post("/logout", (req, res) => {
+    logout(req, res);
+    res.redirect(303, `${config.adminPath}/`);
+  });
+
+  admin.get("/api/overview", adminOnly, async (_req, res) => {
     let treasuryInfo = { address: treasury().publicKey() };
     try {
       treasuryInfo = { ...treasuryInfo, ...(await balances(treasuryInfo.address)) };
@@ -122,7 +140,7 @@ export function webRouter(db, reviews) {
       payments: db.listPayments(),
     });
   });
-  r.post("/api/admin/experts/:id/:decision(approve|reject)", adminAuth, (req, res) => {
+  admin.post("/api/experts/:id/:decision(approve|reject)", adminOnly, (req, res) => {
     const e = db.expertById(Number(req.params.id));
     if (!e) return res.status(404).json({ error: "Not found" });
     if (req.params.decision === "reject") {
@@ -133,29 +151,25 @@ export function webRouter(db, reviews) {
     db.reviewExpert(e.id, "approved", token);
     res.json({ ok: true, portal: `${config.publicUrl}/expert#${token}` });
   });
-  r.get("/api/admin/experts/:id/portal-link", adminAuth, (req, res) => {
+  admin.get("/api/experts/:id/portal-link", adminOnly, (req, res) => {
     const e = db.expertById(Number(req.params.id));
     if (!e?.access_token) return res.status(404).json({ error: "Not approved" });
     res.json({ portal: `${config.publicUrl}/expert#${e.access_token}` });
   });
-  r.get("/api/admin/experts/:id/cv", adminAuth, (req, res) => {
+  admin.get("/api/experts/:id/cv", adminOnly, (req, res) => {
     const e = db.expertById(Number(req.params.id));
     if (!e?.cv_file) return res.status(404).send("Not found");
     res.download(path.join(path.resolve(config.uploadDir), path.basename(e.cv_file)), e.cv_original_name);
   });
-  r.post("/api/admin/questions/:id/retry-payout", adminAuth, async (req, res) => {
+  admin.post("/api/questions/:id/retry-payout", adminOnly, async (req, res) => {
     res.json(await reviews.retryPayout(Number(req.params.id)));
   });
 
-  return r;
-}
+  r.use(config.adminPath, (req, res, next) => {
+    // Relative links in the admin pages need the trailing slash.
+    if (req.method === "GET" && req.originalUrl.split("?")[0] === config.adminPath) return res.redirect(301, `${config.adminPath}/`);
+    next();
+  }, admin);
 
-/** HTTP Basic auth for the admin area. Username: admin, password: ADMIN_PASSWORD. */
-function adminAuth(req, res, next) {
-  const [scheme, encoded] = String(req.get("authorization") || "").split(" ");
-  if (scheme === "Basic" && encoded) {
-    const [user, ...rest] = Buffer.from(encoded, "base64").toString().split(":");
-    if (user === "admin" && config.adminPassword && safeEqual(rest.join(":"), config.adminPassword)) return next();
-  }
-  res.set("WWW-Authenticate", 'Basic realm="Cradle admin"').status(401).send("Authentication required");
+  return r;
 }

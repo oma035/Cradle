@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="referrer" content="no-referrer" />
+  <title>Sign in · Cradle</title>
+  <link rel="icon" type="image/png" href="/static/favicon.png" />
+  <link rel="stylesheet" href="/static/style.css" />
+  <style>
+    body { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+    .box { width: min(400px, 100%); background: #fff; border: 1px solid var(--line); border-radius: 22px; padding: 36px 32px; }
+    .box img { display: block; margin: 0 auto 14px; }
+    .box h1 { text-align: center; font-size: 26px; }
+    .box p.hint { text-align: center; margin-bottom: 24px; }
+    .box .btn { width: 100%; }
+  </style>
+</head>
+<body>
+  <main class="box">
+    <img src="/static/logo.png" width="56" height="56" alt="Cradle" />
+    <h1>Admin sign in</h1>
+    <p class="hint">Sign in with the admin email and password.</p>
+    <div id="error" class="errors" role="alert" hidden></div>
+    <form method="post" action="login" id="form" novalidate>
+      <div class="field"><label for="email">Email</label><input type="email" id="email" name="email" autocomplete="username" required autofocus /></div>
+      <div class="field"><label for="password">Password</label><input type="password" id="password" name="password" autocomplete="current-password" required /></div>
+      <button class="btn btn-primary" type="submit" id="submit">Sign in</button>
+    </form>
+  </main>
+  <script>
+    const q = new URLSearchParams(location.search);
+    const err = document.getElementById("error");
+    if (q.get("error") === "locked") { err.textContent = `Too many failed attempts. Try again in ${q.get("m") || 15} minutes.`; err.hidden = false; }
+    else if (q.get("error")) { err.textContent = "That email and password don't match. Check both and try again."; err.hidden = false; }
+    if (q.has("error")) history.replaceState(null, "", location.pathname);
+    document.getElementById("form").addEventListener("submit", (e) => {
+      const email = document.getElementById("email").value.trim();
+      const pass = document.getElementById("password").value;
+      if (!email || !pass) { e.preventDefault(); err.textContent = "Enter both your email and password."; err.hidden = false; return; }
+      document.getElementById("submit").disabled = true;
+      document.getElementById("submit").textContent = "Signing in…";
+    });
+    ["email", "password"].forEach((id) => document.getElementById(id).addEventListener("input", () => (err.hidden = true)));
+  </script>
+</body>
+</html>

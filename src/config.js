@@ -52,6 +52,9 @@ export const config = {
   port: Number(env.PORT || 3000),
   publicUrl: (env.PUBLIC_URL || `http://localhost:${env.PORT || 3000}`).replace(/\/$/, ""),
   adminPassword: env.ADMIN_PASSWORD || "",
+  adminEmail: (env.ADMIN_EMAIL || "").trim().toLowerCase(),
+  // Secret path for the admin area, e.g. /console-7f3k9q2mx81b. Must be hard to guess.
+  adminPath: "/" + String(env.ADMIN_PATH || "").trim().replace(/^\/+|\/+$/g, ""),
 
   reviewPriceUsd: env.REVIEW_PRICE_USD || "0.20",
   expertSharePercent: Number(env.EXPERT_SHARE_PERCENT || 100),
@@ -76,7 +79,9 @@ export function missingConfig() {
   if (!/^[0-9a-f]{64}$/i.test(config.masterKey)) missing.push("MASTER_KEY (64 hex chars)");
   if (!config.telegramToken) missing.push("TELEGRAM_BOT_TOKEN");
   if (!config.anthropicKey) missing.push("ANTHROPIC_API_KEY");
-  if (!config.adminPassword || config.adminPassword === "change-me") missing.push("ADMIN_PASSWORD");
+  if (!config.adminPassword || config.adminPassword === "change-me" || config.adminPassword.length < 10) missing.push("ADMIN_PASSWORD (at least 10 characters)");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(config.adminEmail)) missing.push("ADMIN_EMAIL");
+  if (!/^\/[A-Za-z0-9_-]{16,}$/.test(config.adminPath)) missing.push("ADMIN_PATH (16+ letters/numbers, e.g. console-7f3k9q2mx81b)");
   if (!config.rpcUrl) missing.push("STELLAR_RPC_URL (required on mainnet)");
   return missing;
 }

@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="referrer" content="no-referrer" />
   <title>Admin · Cradle</title>
   <link rel="icon" type="image/png" href="/static/favicon.png" />
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" />
@@ -29,7 +31,7 @@
   <div class="wrap" style="max-width:1280px">
     <nav class="top">
       <a class="logo" href="/"><img src="/static/logo.png" width="36" height="36" alt="" />Cradle admin</a>
-      <span id="net" class="pill"></span>
+      <span style="display:flex;gap:12px;align-items:center"><span id="net" class="pill"></span><form method="post" action="logout" style="margin:0"><button class="btn btn-ghost btn-sm" type="submit">Log out</button></form></span>
     </nav>
 
     <div class="stats" id="stats"></div>
@@ -58,7 +60,7 @@
     const views = {
       experts: () => table(["#", "Applicant", "Profession", "Wallet", "CV", "Applied", "Status", ""], data.experts, (e) => [
         e.id, `<b>${esc(e.name)}</b><br><span class="hint">${esc(e.email)}</span>`, esc(e.profession), acct(e.stellar_address),
-        `<a href="/api/admin/experts/${e.id}/cv">${esc(e.cv_original_name || "download")}</a>`, esc(e.created_at), pill(e.status),
+        `<a href="api/experts/${e.id}/cv">${esc(e.cv_original_name || "download")}</a>`, esc(e.created_at), pill(e.status),
         e.status === "pending"
           ? `<button class="btn btn-primary btn-sm" onclick="decide(${e.id},'approve')">Approve</button> <button class="btn btn-ghost btn-sm" onclick="decide(${e.id},'reject')">Reject</button>`
           : e.status === "approved" ? `<button class="btn btn-ghost btn-sm" onclick="portal(${e.id})">Portal link</button>` : "",
@@ -98,7 +100,8 @@
     }
 
     async function load() {
-      const res = await fetch("/api/admin/overview");
+      const res = await fetch("api/overview");
+      if (res.status === 401) { location.reload(); return; }
       if (!res.ok) { document.getElementById("panel").textContent = "Couldn't load data."; return; }
       data = await res.json();
       render();
@@ -106,15 +109,15 @@
     async function post(url) { const r = await fetch(url, { method: "POST" }); return r.json(); }
     function note(html) { const n = document.getElementById("note"); n.innerHTML = html; n.hidden = false; }
     async function decide(id, d) {
-      const out = await post(`/api/admin/experts/${id}/${d}`);
+      const out = await post(`api/experts/${id}/${d}`);
       if (out.portal) note(`Approved ✅ Send this private portal link to the expert by email:<br><code>${esc(out.portal)}</code>`);
       load();
     }
     async function portal(id) {
-      const r = await (await fetch(`/api/admin/experts/${id}/portal-link`)).json();
+      const r = await (await fetch(`api/experts/${id}/portal-link`)).json();
       if (r.portal) note(`Private portal link:<br><code>${esc(r.portal)}</code>`);
     }
-    async function retry(id) { const r = await post(`/api/admin/questions/${id}/retry-payout`); note(r.ok ? "Payout sent ✅" : `Payout failed: ${esc(r.msg || "")}`); load(); }
+    async function retry(id) { const r = await post(`api/questions/${id}/retry-payout`); note(r.ok ? "Payout sent ✅" : `Payout failed: ${esc(r.msg || "")}`); load(); }
 
     document.getElementById("tabs").addEventListener("click", (e) => {
       if (!e.target.dataset.tab) return;
