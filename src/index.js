@@ -30,6 +30,17 @@ app.listen(config.port, () => {
   console.log(`   Bot:    https://t.me/${config.telegramUsername}\n`);
 });
 
+// Show the command menu when users type "/" in Telegram.
+tg.call("setMyCommands", {
+  commands: [
+    { command: "start", description: "Welcome and how Cradle works" },
+    { command: "create", description: "Create your Cradle wallet" },
+    { command: "wallet", description: "See your wallet address and balance" },
+    { command: "export", description: "Get your wallet's secret key" },
+    { command: "help", description: "How Cradle works" },
+  ],
+}).catch((err) => console.error("[bot] setMyCommands failed:", err.message));
+
 tg.poll(makeBot(db, tg, reviews));
 
 // Refund unanswered paid reviews every minute.

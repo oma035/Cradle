@@ -1,8 +1,8 @@
-// Cradle's Telegram conversation: /start, /create, /wallet, questions, approve/decline.
+// Cradle's Telegram conversation: /start, /create, /wallet, /export, questions, approve/decline.
 import { config, accountLink, txLink } from "./config.js";
 import { triage } from "./agent.js";
 import { emergencyMessage } from "./redflags.js";
-import { encryptSecret } from "./secrets.js";
+import { encryptSecret, decryptSecret } from "./secrets.js";
 import { balances, createSponsoredWallet } from "./stellar.js";
 import { escapeHtml } from "./reviews.js";
 import { pretty } from "./money.js";
@@ -21,7 +21,7 @@ export function makeBot(db, tg, reviews) {
         "• Simple questions are answered <b>free</b>.\n" +
         `• If you need a real midwife to look at it, I'll ask your permission first. It costs <b>${pretty(config.reviewPriceUsd)}</b> in USDC, paid from your Cradle wallet.\n` +
         "• For danger signs I'll tell you to go to a hospital straight away.\n\n" +
-        "Commands:\n/create: make your Cradle wallet\n/wallet: see your balance\n/help: how Cradle works\n\n" +
+        "Commands:\n/create: make your Cradle wallet\n/wallet: see your balance\n/export: get your wallet's secret key\n/help: how Cradle works\n\n" +
         DISCLAIMER
     );
   }
@@ -53,6 +53,52 @@ export function makeBot(db, tg, reviews) {
         `One midwife review: ${pretty(config.reviewPriceUsd)}\n\n` +
         `<a href="${accountLink(user.public_key)}">View on Stellar explorer</a>`
     );
+  }
+
+  async function onExport(chatId, user) {
+    if (!user.public_key) return tg.send(chatId, "You don't have a wallet yet. Send /create to make one.");
+    await tg.send(
+      chatId,
+      "🔑 <b>Export your wallet</b>\n\n" +
+        "Your secret key gives <b>full control</b> of your wallet and your money. With it you can use your wallet " +
+        "in another app like Lobstr or Freighter.\n\n" +
+        "⚠️ Never share it with anyone, not even someone saying they're from Cradle. " +
+        "For your safety, the key will be deleted from this chat after 60 seconds.\n\n" +
+        "Do you want to see it now?",
+      {
+        reply_markup: {
+          inline_keyboard: [[
+            { text: "🔑 Show my secret key", callback_data: "export:yes" },
+            { text: "Cancel", callback_data: "export:no" },
+          ]],
+        },
+      }
+    );
+  }
+
+  async function onExportConfirm(cb) {
+    const chatId = cb.message.chat.id;
+    await tg.clearButtons(chatId, cb.message.message_id);
+    if (!String(cb.data).endsWith(":yes")) {
+      await tg.answerCallback(cb.id, "Cancelled");
+      return tg.send(chatId, "Okay, your key was not shown.");
+    }
+    const user = db.userByTelegram(cb.from.id);
+    if (!user?.enc_secret) return tg.answerCallback(cb.id, "No wallet found");
+    await tg.answerCallback(cb.id);
+    const secret = decryptSecret(user.enc_secret, config.masterKey);
+    const sent = await tg.send(
+      chatId,
+      `Your wallet address:\n<code>${user.public_key}</code>\n\n` +
+        `Your secret key (tap to reveal, then tap to copy):\n<tg-spoiler><code>${secret}</code></tg-spoiler>\n\n` +
+        "⏳ This message will be deleted in 60 seconds. Save the key somewhere safe and private.",
+      { protect_content: true }
+    );
+    setTimeout(() => {
+      tg.call("deleteMessage", { chat_id: chatId, message_id: sent.message_id })
+        .then(() => tg.send(chatId, "🔒 Your secret key was removed from this chat."))
+        .catch(() => {});
+    }, 60_000);
   }
 
   async function onQuestion(chatId, user, text) {
@@ -87,6 +133,7 @@ export function makeBot(db, tg, reviews) {
     const chatId = cb.message.chat.id;
     const [action, rawId] = String(cb.data || "").split(":");
     const id = Number(rawId);
+    if (action === "export") return onExportConfirm(cb);
     if (action === "decline") {
       await tg.answerCallback(cb.id, "Declined");
       await tg.clearButtons(chatId, cb.message.message_id);
@@ -133,6 +180,7 @@ export function makeBot(db, tg, reviews) {
       if (cmd === "/start" || cmd === "/help") return await onStart(chatId, user);
       if (cmd === "/create") return await onCreate(chatId, user);
       if (cmd === "/wallet") return await onWallet(chatId, user);
+      if (cmd === "/export") return await onExport(chatId, user);
       if (cmd) return await tg.send(chatId, "I don't know that command. Try /help.");
       return await onQuestion(chatId, user, text);
     } catch (err) {
