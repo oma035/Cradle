@@ -4,99 +4,286 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="referrer" content="no-referrer" />
+  <meta name="robots" content="noindex, nofollow" />
   <title>Reviewer portal · Cradle</title>
   <link rel="icon" type="image/png" href="/static/favicon.png" />
-  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" />
   <link rel="stylesheet" href="/static/style.css" />
   <style>
-    .q { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
-    .q .text { font-size: 18px; margin: 8px 0 12px; }
-    .q .ai { background: var(--plum-soft); border-radius: 10px; padding: 10px 14px; font-size: 14px; white-space: pre-wrap; }
-    .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .msg { margin-top: 10px; font-size: 14px; }
+    [hidden] { display: none !important; }
+    body { background: var(--cream); }
+    .topbar { background: #fff; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+    .topbar .wrap { display: flex; align-items: center; justify-content: space-between; height: 68px; gap: 16px; }
+    .topbar .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 19px; color: var(--ink); text-decoration: none; }
+    .topbar .brand small { font-weight: 500; color: var(--muted); font-size: 14px; padding-left: 10px; border-left: 1px solid var(--line); }
+    .me { display: flex; align-items: center; gap: 12px; }
+    .avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--plum); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 15px; }
+    .me b { display: block; font-size: 15px; line-height: 1.2; }
+    .me div span { font-size: 13px; color: var(--muted); }
+
+    .page { padding-top: 32px; padding-bottom: 80px; }
+    .hello h1 { font-size: clamp(26px, 3vw, 32px); }
+    .hello p { color: var(--muted); margin-top: 4px; }
+    .hello a { font-family: ui-monospace, Menlo, monospace; font-size: 14px; }
+
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 24px 0 32px; }
+    .stat { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; }
+    .stat span { color: var(--muted); font-size: 14px; }
+    .stat b { display: block; font-size: 30px; font-weight: 800; letter-spacing: -0.02em; margin-top: 2px; font-variant-numeric: tabular-nums; }
+    .stat.hot { background: var(--plum); border-color: var(--plum); color: #fff; }
+    .stat.hot span { color: #D8E9F8; }
+
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; align-items: start; }
+    .section-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; gap: 12px; }
+    .section-title h2 { font-size: 20px; }
+    .updated { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 10px; }
+    .updated button { background: none; border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; font: 600 13px "Figtree", sans-serif; color: var(--plum); cursor: pointer; }
+    .updated button:hover { border-color: var(--plum); }
+
+    .q { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 22px 24px; margin-bottom: 14px; }
+    .q.mine { border: 2px solid var(--plum); }
+    .q-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .ticket { font-weight: 700; font-size: 14px; color: var(--plum); }
+    .wait { font-size: 13px; color: var(--muted); }
+    .wait.long { color: var(--amber); font-weight: 600; }
+    .q-text { font-size: 19px; line-height: 1.5; margin: 12px 0 14px; font-weight: 500; }
+    .q details { background: var(--cream); border-radius: 12px; padding: 10px 14px; font-size: 14.5px; }
+    .q summary { cursor: pointer; color: var(--muted); font-weight: 600; }
+    .q details div { white-space: pre-wrap; margin-top: 8px; color: var(--ink); }
+    .q-actions { margin-top: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .q textarea { margin-top: 16px; min-height: 160px; line-height: 1.55; }
+    .q .meta { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-top: 6px; }
+    .msg { font-size: 14.5px; font-weight: 600; }
+    .msg.ok { color: var(--green); }
+    .msg.err { color: var(--red); }
+    .msg.warn { color: var(--amber); }
+
+    .empty { background: #fff; border: 1px dashed var(--line); border-radius: 18px; padding: 40px 24px; text-align: center; color: var(--muted); }
+    .empty b { display: block; color: var(--ink); font-size: 18px; margin-bottom: 4px; }
+
+    aside .card { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 22px; margin-bottom: 16px; }
+    aside h3 { font-size: 16px; margin-bottom: 12px; }
+    aside ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; font-size: 14.5px; }
+    aside li { display: grid; grid-template-columns: 20px 1fr; gap: 8px; }
+    aside li svg { margin-top: 3px; color: var(--plum); }
+    aside .warn-card { background: var(--red-soft); border-color: #f2c4bf; }
+    aside .warn-card h3 { color: var(--red); }
+    aside .warn-card p { font-size: 14.5px; }
+
+    .history { margin-top: 40px; }
+    .h-item { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 16px 20px; margin-bottom: 10px; display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; }
+    .h-item .h-q { font-weight: 600; }
+    .h-item .h-a { grid-column: 1 / -1; color: var(--muted); font-size: 14.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .h-item .h-pay { text-align: right; font-size: 14px; white-space: nowrap; }
+    .h-item .h-pay b { display: block; color: var(--green); font-size: 16px; }
+
+    .denied { max-width: 460px; margin: 12vh auto; text-align: center; background: #fff; border: 1px solid var(--line); border-radius: 22px; padding: 40px 32px; }
+    .denied img { margin: 0 auto 16px; }
+    .denied p { color: var(--muted); margin-top: 8px; }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: 1fr 1fr; }
+      .topbar .brand small { display: none; }
+    }
+    @media (max-width: 520px) {
+      .me div { display: none; }
+      .q { padding: 18px; }
+      .q-text { font-size: 17px; }
+      .stat b { font-size: 24px; }
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <nav class="top">
-      <a class="logo" href="/"><img src="/static/logo.png" width="36" height="36" alt="" />Cradle</a>
-      <span id="who" class="hint"></span>
-    </nav>
-    <main class="narrow" style="margin: 10px auto 80px">
-      <div id="denied" class="errors" hidden>This portal link isn't valid or your account isn't approved yet.</div>
-      <div id="app" hidden>
-        <h1>Questions waiting for you</h1>
-        <p class="hint">Each answer pays <b id="payout"></b> USDC to <code id="addr"></code> the moment you submit it. The mother's name is never shown to you.</p>
-        <div class="row" style="margin: 10px 0 20px"><span class="hint" id="count"></span><button class="btn btn-ghost btn-sm" onclick="load()">Refresh</button></div>
-        <div id="open"></div>
-        <h2 style="margin-top:40px">Your answered questions</h2>
-        <div id="history" class="hint">None yet.</div>
+  <header class="topbar">
+    <div class="wrap">
+      <a class="brand" href="/"><img src="/static/logo.png" width="34" height="34" alt="" />Cradle <small>Reviewer portal</small></a>
+      <div class="me" id="me" hidden>
+        <div style="text-align:right"><b id="who"></b><span id="role"></span></div>
+        <span class="avatar" id="initials" aria-hidden="true"></span>
       </div>
-    </main>
+    </div>
+  </header>
+
+  <div id="denied" class="denied" hidden>
+    <img src="/static/logo.png" width="56" height="56" alt="" />
+    <h1 style="font-size:24px">This link isn't active</h1>
+    <p>Your reviewer link may be incomplete, or your application hasn't been approved yet. Open the full link from your approval message, or contact the Cradle team.</p>
   </div>
+
+  <main class="page wrap" id="app" hidden>
+    <div class="hello">
+      <h1 id="greeting">Welcome back</h1>
+      <p>Payouts go to <a id="wallet" target="_blank" rel="noopener"></a> the moment you send an answer.</p>
+    </div>
+
+    <div class="stats">
+      <div class="stat hot"><span>Waiting for review</span><b id="s-open">0</b></div>
+      <div class="stat"><span>Answered by you</span><b id="s-done">0</b></div>
+      <div class="stat"><span>Earned</span><b id="s-earned">$0.00</b></div>
+      <div class="stat"><span>Pay per answer</span><b id="s-rate">$0.00</b></div>
+    </div>
+
+    <div class="layout">
+      <section aria-labelledby="queue-title">
+        <div class="section-title">
+          <h2 id="queue-title">Questions from mothers</h2>
+          <span class="updated"><span id="updated">Loading…</span><button type="button" onclick="load()">Refresh</button></span>
+        </div>
+        <div id="open"></div>
+
+        <div class="history">
+          <div class="section-title"><h2>Your answers</h2></div>
+          <div id="history"></div>
+        </div>
+      </section>
+
+      <aside>
+        <div class="card">
+          <h3>Answering well</h3>
+          <ul>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg><span>Use short, simple sentences. Many mothers read in a second language.</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg><span>Say clearly if and when she should visit a clinic.</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg><span>Don't prescribe medicines or doses. Refer her to a clinic instead.</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg><span>Only take a question you can answer now. Unanswered questions are refunded after 2 hours.</span></li>
+          </ul>
+        </div>
+        <div class="card warn-card">
+          <h3>If it sounds urgent</h3>
+          <p>Bleeding, severe headache, blurred vision, fits, fever or the baby moving less: tell her to go to the nearest hospital now, in your first sentence.</p>
+        </div>
+      </aside>
+    </div>
+  </main>
+
   <script>
     let token = location.hash.slice(1);
     try { if (token) sessionStorage.setItem("cradleExpert", token); else token = sessionStorage.getItem("cradleExpert") || ""; } catch {}
     if (location.hash) history.replaceState(null, "", location.pathname);
 
+    const $ = (id) => document.getElementById(id);
     const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+    const usd = (v) => `$${Number(v || 0).toFixed(2)}`;
+    const drafts = {};
+    let rate = 0;
+
     const api = async (path, opts = {}) => {
       const res = await fetch(path, { ...opts, headers: { "x-expert-token": token, "content-type": "application/json", ...(opts.headers || {}) } });
       const body = await res.json().catch(() => ({}));
       return { ok: res.ok, status: res.status, body };
     };
 
+    function ago(sqlTime) {
+      if (!sqlTime) return { text: "", mins: 0 };
+      const t = new Date(sqlTime.replace(" ", "T") + "Z").getTime();
+      const mins = Math.max(0, Math.round((Date.now() - t) / 60000));
+      const text = mins < 1 ? "just now" : mins < 60 ? `${mins} min ago` : `${Math.floor(mins / 60)} h ${mins % 60} min ago`;
+      return { text, mins };
+    }
+
+    function saveDrafts() {
+      document.querySelectorAll("textarea[data-id]").forEach((t) => (drafts[t.dataset.id] = t.value));
+    }
+
     async function load() {
       const me = await api("/api/expert/me");
-      if (!me.ok) { document.getElementById("denied").hidden = false; return; }
-      document.getElementById("app").hidden = false;
-      document.getElementById("who").textContent = `${me.body.name}${me.body.profession ? " · " + me.body.profession : ""}`;
-      document.getElementById("payout").textContent = `$${Number(me.body.payout).toFixed(2)}`;
-      document.getElementById("addr").textContent = me.body.address.slice(0, 6) + "…" + me.body.address.slice(-4);
+      if (!me.ok) { $("denied").hidden = false; $("app").hidden = true; return; }
+      $("app").hidden = false; $("me").hidden = false;
+      const name = me.body.name || "";
+      $("who").textContent = name;
+      $("role").textContent = me.body.profession || "Reviewer";
+      $("initials").textContent = name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+      $("greeting").textContent = `Welcome back, ${name.split(" ")[0] || "there"}`;
+      const addr = me.body.address;
+      $("wallet").textContent = `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+      $("wallet").href = `https://stellar.expert/explorer/public/account/${addr}`;
+      rate = Number(me.body.payout);
+      $("s-rate").textContent = usd(rate);
 
       const { body } = await api("/api/expert/reviews");
-      document.getElementById("count").textContent = `${body.open.length} open`;
-      document.getElementById("open").innerHTML = body.open.length ? body.open.map(renderQ).join("") : '<p class="hint">No questions waiting right now. 🌿</p>';
-      document.getElementById("history").innerHTML = body.history.length
-        ? body.history.map((h) => `<div class="q"><div class="hint">CRD-${h.id} · ${esc(h.answered_at)}</div><div class="text">${esc(h.text)}</div><div>${esc(h.expert_answer)}</div><div class="msg">Paid $${Number(h.payout_amount).toFixed(2)} · <a href="${h.payout_link}" target="_blank">view payout</a></div></div>`).join("")
-        : "None yet.";
+      saveDrafts();
+      const waiting = body.open.filter((q) => q.status === "paid").length;
+      $("s-open").textContent = waiting;
+      $("s-done").textContent = body.history.length;
+      $("s-earned").textContent = usd(body.history.reduce((s, h) => s + Number(h.payout_amount || 0), 0));
+
+      const mine = body.open.filter((q) => q.status === "claimed");
+      const others = body.open.filter((q) => q.status !== "claimed");
+      $("open").innerHTML = body.open.length
+        ? [...mine, ...others].map(renderQ).join("")
+        : `<div class="empty"><b>No questions waiting right now</b>New questions appear here automatically. This page refreshes every 30 seconds.</div>`;
+      document.querySelectorAll("textarea[data-id]").forEach((t) => {
+        if (drafts[t.dataset.id]) t.value = drafts[t.dataset.id];
+        count(t);
+        t.addEventListener("input", () => { count(t); const m = $("m" + t.dataset.id); m.textContent = ""; });
+      });
+
+      $("history").innerHTML = body.history.length
+        ? body.history.map((h) => `
+          <div class="h-item">
+            <div><span class="ticket">CRD-${h.id}</span> <span class="h-q">${esc(h.text)}</span></div>
+            <div class="h-pay"><b>+${usd(h.payout_amount)}</b><a href="${h.payout_link}" target="_blank" rel="noopener">View payment</a></div>
+            <div class="h-a">${esc(h.expert_answer)}</div>
+          </div>`).join("")
+        : `<div class="empty"><b>No answers yet</b>Answers you send will appear here with their payments.</div>`;
+
+      $("updated").textContent = `Updated ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
     }
 
     function renderQ(q) {
       const mine = q.status === "claimed";
-      return `<div class="q" id="q${q.id}">
-        <div class="row"><span class="hint">Ticket CRD-${q.id} · paid ${esc(q.paid_at)}</span><span class="pill ${q.status}">${mine ? "claimed by you" : "open"}</span></div>
-        <div class="text">“${esc(q.text)}”</div>
-        <details><summary class="hint">What Cradle's agent told her</summary><div class="ai">${esc(q.ai_answer)}</div></details>
+      const w = ago(q.paid_at);
+      return `<article class="q ${mine ? "mine" : ""}" id="q${q.id}">
+        <div class="q-head">
+          <span><span class="ticket">CRD-${q.id}</span> <span class="pill ${mine ? "claimed" : "paid"}">${mine ? "You're answering" : "Waiting"}</span></span>
+          <span class="wait ${w.mins >= 60 ? "long" : ""}">Asked ${w.text}</span>
+        </div>
+        <p class="q-text">“${esc(q.text)}”</p>
+        <details><summary>What Cradle already told her</summary><div>${esc(q.ai_answer)}</div></details>
         ${mine
-          ? `<div class="field" style="margin-top:14px"><textarea id="a${q.id}" placeholder="Write your answer in simple, kind language. Say clearly if she should visit a clinic."></textarea></div>
-             <button class="btn btn-primary" onclick="answer(${q.id}, this)">Send answer &amp; get paid</button>`
-          : `<button class="btn btn-coral" style="margin-top:14px" onclick="claim(${q.id}, this)">Take this question</button>`}
-        <div class="msg" id="m${q.id}"></div>
-      </div>`;
+          ? `<label class="sr-only" for="a${q.id}" style="position:absolute;left:-999px">Your answer</label>
+             <textarea id="a${q.id}" data-id="${q.id}" placeholder="Write your answer in simple, kind language. Say clearly if she should visit a clinic."></textarea>
+             <div class="meta"><span>She'll receive this in Telegram with your name.</span><span id="c${q.id}">0 words</span></div>
+             <div class="q-actions"><button class="btn btn-primary" onclick="answer(${q.id}, this)">Send answer and get ${usd(rate)}</button><span class="msg" id="m${q.id}"></span></div>`
+          : `<div class="q-actions"><button class="btn btn-coral" onclick="claim(${q.id}, this)">Take this question</button><span class="msg" id="m${q.id}"></span></div>`}
+      </article>`;
+    }
+
+    function count(t) {
+      const n = t.value.trim().split(/\s+/).filter(Boolean).length;
+      $("c" + t.dataset.id).textContent = `${n} word${n === 1 ? "" : "s"}`;
     }
 
     async function claim(id, btn) {
-      btn.disabled = true;
+      btn.disabled = true; btn.textContent = "Taking it…";
       const r = await api(`/api/expert/reviews/${id}/claim`, { method: "POST" });
-      if (!r.ok) document.getElementById("m" + id).textContent = r.body.error;
-      load();
+      if (!r.ok) { const m = $("m" + id); m.textContent = r.body.error || "Couldn't take this question."; m.className = "msg err"; btn.disabled = false; btn.textContent = "Take this question"; return; }
+      await load();
+      $("a" + id)?.focus();
     }
 
     async function answer(id, btn) {
-      const text = document.getElementById("a" + id).value.trim();
-      const m = document.getElementById("m" + id);
-      if (text.length < 20) { m.textContent = "Please write a fuller answer (at least 20 characters)."; m.style.color = "var(--red)"; return; }
+      const ta = $("a" + id);
+      const text = ta.value.trim();
+      const m = $("m" + id);
+      if (text.length < 20) { m.textContent = "Write a fuller answer: at least 20 characters."; m.className = "msg err"; ta.focus(); return; }
       btn.disabled = true; btn.textContent = "Sending and paying you…";
       const r = await api(`/api/expert/reviews/${id}/answer`, { method: "POST", body: JSON.stringify({ answer: text }) });
       if (r.ok && r.body.payout_link) {
-        m.innerHTML = `✅ Sent! You were paid $${Number(r.body.amount).toFixed(2)} USDC. <a href="${r.body.payout_link}" target="_blank">View on Stellar</a>`;
-        m.style.color = "var(--green)";
-        setTimeout(load, 2500);
+        delete drafts[id];
+        m.innerHTML = `Sent. You were paid ${usd(r.body.amount)} USDC. <a href="${r.body.payout_link}" target="_blank" rel="noopener">View payment</a>`;
+        m.className = "msg ok";
+        btn.remove(); ta.disabled = true;
+        setTimeout(load, 3000);
+      } else if (r.ok) {
+        delete drafts[id];
+        m.textContent = r.body.msg || "Answer sent. Your payment is being processed.";
+        m.className = "msg warn";
+        btn.remove(); ta.disabled = true;
+        setTimeout(load, 3000);
       } else {
-        m.textContent = r.body.msg || r.body.error || "Something went wrong.";
-        m.style.color = r.ok ? "var(--amber)" : "var(--red)";
-        btn.disabled = false; btn.textContent = "Send answer & get paid";
+        m.textContent = r.body.msg || r.body.error || "Your answer wasn't sent. Try again.";
+        m.className = "msg err";
+        btn.disabled = false; btn.textContent = `Send answer and get ${usd(rate)}`;
       }
     }
 
